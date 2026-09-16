@@ -35,6 +35,15 @@ export interface WorkspaceState {
   tools: ToolDescriptor[];
   /** Tracks which agents are mid-step so the UI can pulse them. */
   liveSteps: Record<string, { summary: string; at: number }>;
+  /**
+   * Every human this client has seen, accumulated and never pruned.
+   *
+   * `members` is a snapshot and `presence` only holds people who are online
+   * right now, so neither can name someone who joined after this client loaded
+   * and has since closed their tab. Without this their messages would render as
+   * a raw user id.
+   */
+  seenUsers: Record<string, { displayName: string; avatarColor: string }>;
 }
 
 export interface AppState {
@@ -111,6 +120,13 @@ export class Store {
         activeRuns: snapshot.activeRuns,
         tools: snapshot.tools,
         liveSteps: {},
+        seenUsers: Object.fromEntries(
+          [...snapshot.members.map((m) => m.user), ...snapshot.presence.map((p) => ({
+            id: p.userId,
+            displayName: p.displayName,
+            avatarColor: p.avatarColor,
+          }))].map((u) => [u.id, { displayName: u.displayName, avatarColor: u.avatarColor }]),
+        ),
       },
     });
   }
@@ -157,7 +173,14 @@ function reduce(state: WorkspaceState, event: WorkspaceEvent): WorkspaceState {
     case 'USER_JOINED':
     case 'USER_PRESENCE_UPDATED': {
       const entry = p.user as PresenceEntry;
-      return { ...next, presence: upsertBy(next.presence, entry, (u) => u.userId) };
+      return {
+        ...next,
+        presence: upsertBy(next.presence, entry, (u) => u.userId),
+        seenUsers: {
+          ...next.seenUsers,
+          [entry.userId]: { displayName: entry.displayName, avatarColor: entry.avatarColor },
+        },
+      };
     }
     case 'USER_LEFT': {
       const userId = p.userId as string;

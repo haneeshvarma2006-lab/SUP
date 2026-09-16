@@ -39,6 +39,26 @@ export class HeuristicProvider implements AIProvider {
   async generate(request: GenerateRequest, signal?: AbortSignal): Promise<GenerateResponse> {
     if (signal?.aborted) throw new Error('aborted');
 
+    // Optional pacing for local development and demos. A real model takes
+    // seconds per step; this policy takes microseconds, which makes the
+    // realtime UI impossible to actually watch (or screenshot) on a laptop.
+    // This delays the *response* only — every state transition, event and tool
+    // call is still genuine, just spaced out like a real run.
+    const paceMs = Number.parseInt(process.env.HEURISTIC_PACE_MS ?? '0', 10);
+    if (Number.isFinite(paceMs) && paceMs > 0) {
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(resolve, paceMs);
+        signal?.addEventListener(
+          'abort',
+          () => {
+            clearTimeout(timer);
+            reject(new Error('aborted'));
+          },
+          { once: true },
+        );
+      });
+    }
+
     const context = readContext(request);
     const content = this.decide(request, context);
 

@@ -15,7 +15,7 @@ import { useMemo, type ReactNode } from 'react';
  */
 export function Markdown({ text, mentions }: { text: string; mentions?: string[] }) {
   const blocks = useMemo(() => parseBlocks(text), [text]);
-  return <div className="message-text">{blocks.map((block, i) => renderBlock(block, i, mentions))}</div>;
+  return <div className="prose">{blocks.map((block, i) => renderBlock(block, i, mentions))}</div>;
 }
 
 type Block =

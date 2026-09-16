@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import type { AgentTemplate } from '@sup/shared';
 import { api } from '../api/client.js';
 import { useAction, useAsync, useWorkspaceOrThrow } from '../state/hooks.js';
-import { Badge, ErrorText, Spinner } from './primitives.js';
+import { ErrorNote, Spinner, Tag } from './primitives.js';
 
 /**
  * Adding an agent.
@@ -85,7 +85,7 @@ export function AddAgentDialog({ onClose }: { onClose: () => void }) {
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(4, 5, 9, 0.75)',
+        background: 'rgba(3, 4, 7, 0.62)', backdropFilter: 'blur(6px)',
         display: 'grid',
         placeItems: 'center',
         zIndex: 100,
@@ -99,19 +99,19 @@ export function AddAgentDialog({ onClose }: { onClose: () => void }) {
       aria-label="Add an agent"
     >
       <div
-        className="auth-card"
+        className="gate__card"
         style={{ maxWidth: 620, width: '100%', maxHeight: '88vh', overflowY: 'auto' }}
       >
         <div className="row" style={{ marginBottom: 16 }}>
           <div style={{ flex: 1 }}>
-            <h2 className="auth-title" style={{ fontSize: 18 }}>
+            <h2 className="gate__title" style={{ fontSize: 18 }}>
               Add an agent
             </h2>
-            <p className="auth-sub" style={{ margin: 0 }}>
+            <p className="gate__sub" style={{ margin: 0 }}>
               New roles need no code change — pick a blueprint or define your own.
             </p>
           </div>
-          <button type="button" className="btn ghost sm" onClick={onClose}>
+          <button type="button" className="btn btn--quiet btn--sm" onClick={onClose}>
             Close
           </button>
         </div>
@@ -119,28 +119,28 @@ export function AddAgentDialog({ onClose }: { onClose: () => void }) {
         {templates.loading ? (
           <Spinner />
         ) : (
-          <div className="stack" style={{ marginBottom: 14 }}>
+          <div className="col-gap" style={{ marginBottom: 14 }}>
             {(templates.data ?? []).map((template) => {
               const duplicate = existingRoles.has(template.role.toLowerCase());
               return (
                 <button
                   key={template.key}
                   type="button"
-                  className="card interactive"
+                  className="card card--tap"
                   style={{
                     textAlign: 'left',
-                    borderColor: selected?.key === template.key ? 'var(--accent)' : undefined,
+                    borderColor: selected?.key === template.key ? 'var(--iris)' : undefined,
                   }}
                   onClick={() => pick(template)}
                 >
                   <div className="row">
                     <span style={{ fontSize: 18 }}>{template.avatarEmoji}</span>
                     <span style={{ fontWeight: 650 }}>{template.name}</span>
-                    <Badge>{template.role}</Badge>
-                    {duplicate ? <Badge tone="warn">already on the team</Badge> : null}
-                    {template.isOrchestrator ? <Badge tone="accent">lead</Badge> : null}
+                    <Tag>{template.role}</Tag>
+                    {duplicate ? <Tag tone="amber">already on the team</Tag> : null}
+                    {template.isOrchestrator ? <Tag tone="iris">lead</Tag> : null}
                   </div>
-                  <div className="dim" style={{ fontSize: 12, marginTop: 3 }}>
+                  <div className="faint" style={{ fontSize: 12, marginTop: 3 }}>
                     {template.tagline}
                   </div>
                 </button>
@@ -149,15 +149,15 @@ export function AddAgentDialog({ onClose }: { onClose: () => void }) {
 
             <button
               type="button"
-              className="card interactive"
-              style={{ textAlign: 'left', borderColor: custom ? 'var(--accent)' : undefined }}
+              className="card card--tap"
+              style={{ textAlign: 'left', borderColor: custom ? 'var(--iris)' : undefined }}
               onClick={startCustom}
             >
               <div className="row">
                 <span style={{ fontSize: 18 }}>✨</span>
                 <span style={{ fontWeight: 650 }}>Something else</span>
               </div>
-              <div className="dim" style={{ fontSize: 12, marginTop: 3 }}>
+              <div className="faint" style={{ fontSize: 12, marginTop: 3 }}>
                 Define a role of your own with its own instructions and tools.
               </div>
             </button>
@@ -240,7 +240,7 @@ export function AddAgentDialog({ onClose }: { onClose: () => void }) {
               {byCategory.map(([category, tools]) => (
                 <div key={category} style={{ marginBottom: 8 }}>
                   <div
-                    className="dim"
+                    className="faint"
                     style={{ fontSize: 10.5, textTransform: 'uppercase', marginBottom: 2 }}
                   >
                     {category}
@@ -259,7 +259,7 @@ export function AddAgentDialog({ onClose }: { onClose: () => void }) {
                         }
                       />
                       <span className="mono">{tool.name}</span>
-                      {tool.risk === 'dangerous' ? <Badge tone="danger">approval</Badge> : null}
+                      {tool.risk === 'dangerous' ? <Tag tone="rose">approval</Tag> : null}
                     </label>
                   ))}
                 </div>
@@ -270,7 +270,7 @@ export function AddAgentDialog({ onClose }: { onClose: () => void }) {
 
         <button
           type="button"
-          className="btn primary"
+          className="btn btn--primary"
           style={{ width: '100%' }}
           onClick={() => void create.run()}
           disabled={!canCreate || create.pending}
@@ -278,7 +278,7 @@ export function AddAgentDialog({ onClose }: { onClose: () => void }) {
           {create.pending ? <Spinner /> : 'Add to the team'}
         </button>
 
-        <ErrorText>{create.error}</ErrorText>
+        <ErrorNote>{create.error}</ErrorNote>
       </div>
     </div>
   );

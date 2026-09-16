@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   MEMORY_KINDS,
   MEMORY_SCOPES,
@@ -9,31 +9,32 @@ import {
 } from '@sup/shared';
 import { api } from '../api/client.js';
 import { useAction, useActorLookup, useTicker, useWorkspaceOrThrow } from '../state/hooks.js';
-import { Badge, Empty, ErrorText, PanelHeader, Spinner, relativeTime } from './primitives.js';
+import { Button, Empty, ErrorNote, Icon, Spinner, Tag, relTime, type Tone } from './primitives.js';
 
-const SCOPE_TONE: Record<MemoryScope, 'accent' | 'info' | 'violet' | 'neutral'> = {
-  project: 'accent',
-  agent: 'violet',
-  episodic: 'info',
+const SCOPE_TONE: Record<MemoryScope, Tone> = {
+  project: 'iris',
+  agent: 'lilac',
+  episodic: 'sky',
   short_term: 'neutral',
 };
 
-const KIND_TONE: Record<MemoryKind, 'ok' | 'warn' | 'danger' | 'neutral' | 'violet'> = {
+const KIND_TONE: Record<MemoryKind, Tone> = {
   fact: 'neutral',
   preference: 'neutral',
-  decision: 'ok',
-  feedback: 'warn',
+  decision: 'mint',
+  feedback: 'amber',
   episode: 'neutral',
   artifact: 'neutral',
-  constraint: 'danger',
+  constraint: 'rose',
 };
 
 /**
  * The memory inspector.
  *
- * Memory is only trustworthy if a human can see it, correct it and delete it —
- * so everything stored is listed here, with the retrieval score that put it
- * near the top, and every record is editable in place.
+ * Memory is only trustworthy if a human can see it, correct it and delete it.
+ * So everything stored is listed, every record is editable in place, and a
+ * search shows the same ranking the agents get — including the component
+ * scores, so a surprising retrieval can be explained rather than guessed at.
  */
 export function MemoryPanel() {
   const workspace = useWorkspaceOrThrow();
@@ -43,17 +44,16 @@ export function MemoryPanel() {
   const [query, setQuery] = useState('');
   const [scope, setScope] = useState<MemoryScope | 'all'>('all');
   const [kind, setKind] = useState<MemoryKind | 'all'>('all');
-  const [searchHits, setSearchHits] = useState<MemorySearchHit[] | null>(null);
+  const [hits, setHits] = useState<MemorySearchHit[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [composing, setComposing] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
 
-  // Debounced server-side search: the ranking (semantic + keyword + importance
-  // + recency) lives on the server, so filtering locally would show a different
-  // order than the agents actually see.
+  // Debounced server-side search. Ranking lives on the server, so filtering
+  // locally would show a different order than the agents actually see.
   useEffect(() => {
     if (!query.trim()) {
-      setSearchHits(null);
+      setHits(null);
       return;
     }
     const timer = window.setTimeout(() => {
@@ -65,15 +65,15 @@ export function MemoryPanel() {
           ...(kind !== 'all' ? { kind } : {}),
           limit: 40,
         })
-        .then((response) => setSearchHits(response.hits))
-        .catch(() => setSearchHits([]))
+        .then((r) => setHits(r.hits))
+        .catch(() => setHits([]))
         .finally(() => setSearching(false));
-    }, 260);
+    }, 240);
     return () => window.clearTimeout(timer);
   }, [query, scope, kind, workspace.workspace.id]);
 
   const listed = useMemo((): MemorySearchHit[] => {
-    if (searchHits) return searchHits;
+    if (hits) return hits;
     return workspace.memories
       .filter((m) => (scope === 'all' ? true : m.scope === scope))
       .filter((m) => (kind === 'all' ? true : m.kind === kind))
@@ -83,34 +83,41 @@ export function MemoryPanel() {
         score: record.importance,
         breakdown: { semantic: 0, keyword: 0, importance: record.importance, recency: 0 },
       }));
-  }, [searchHits, workspace.memories, scope, kind]);
+  }, [hits, workspace.memories, scope, kind]);
 
   const canWrite = workspace.viewer.role !== 'viewer';
 
   return (
     <>
-      <PanelHeader title="Memory" count={workspace.memories.length}>
-        {canWrite ? (
-          <button type="button" className="btn ghost sm" onClick={() => setComposing((v) => !v)}>
-            {composing ? 'Cancel' : '+ Add'}
-          </button>
-        ) : null}
-      </PanelHeader>
+      <div className="pad" style={{ paddingBottom: 9, borderBottom: '1px solid var(--hairline)' }}>
+        <div className="row" style={{ position: 'relative' }}>
+          <Icon.Search
+            size={13}
+            className="faint"
+            style={{ position: 'absolute', left: 10, pointerEvents: 'none' }}
+          />
+          <input
+            className="input"
+            style={{ paddingLeft: 30 }}
+            placeholder="Search what the team has learned…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label="Search memory"
+          />
+          {canWrite ? (
+            <Button variant="ghost" size="sm" onClick={() => setComposing((v) => !v)}>
+              {composing ? <Icon.X size={11} /> : <Icon.Plus size={11} />}
+            </Button>
+          ) : null}
+        </div>
 
-      <div className="pad" style={{ paddingBottom: 8, borderBottom: '1px solid var(--border)' }}>
-        <input
-          className="input"
-          placeholder="Search what the team has learned…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          aria-label="Search memory"
-        />
         <div className="row" style={{ marginTop: 8 }}>
           <select
             className="select"
             value={scope}
             onChange={(e) => setScope(e.target.value as MemoryScope | 'all')}
             aria-label="Filter by scope"
+            style={{ fontSize: 12 }}
           >
             <option value="all">All scopes</option>
             {MEMORY_SCOPES.map((s) => (
@@ -124,6 +131,7 @@ export function MemoryPanel() {
             value={kind}
             onChange={(e) => setKind(e.target.value as MemoryKind | 'all')}
             aria-label="Filter by kind"
+            style={{ fontSize: 12 }}
           >
             <option value="all">All kinds</option>
             {MEMORY_KINDS.map((k) => (
@@ -134,37 +142,36 @@ export function MemoryPanel() {
           </select>
           {searching ? <Spinner /> : null}
         </div>
-        {searchHits ? (
-          <div className="dim" style={{ fontSize: 11, marginTop: 6 }}>
+
+        {hits ? (
+          <div className="faint" style={{ fontSize: 11, marginTop: 7 }}>
             Ranked by the same retrieval the agents use.
           </div>
         ) : null}
       </div>
 
-      {composing ? <MemoryComposer onDone={() => setComposing(false)} /> : null}
+      {composing ? <Composer onDone={() => setComposing(false)} /> : null}
 
-      <div className="column-scroll">
+      <div className="scroll">
         {listed.length === 0 ? (
-          <Empty icon="⌾">
-            {query ? 'Nothing matched that search.' : 'Nothing learned yet. Memory fills up as the team works.'}
+          <Empty icon={<Icon.Memory size={17} />} title={query ? 'No matches' : 'Nothing learned yet'}>
+            {query
+              ? 'Nothing stored matches that search.'
+              : 'Memory fills up as the team works, and as you correct it.'}
           </Empty>
         ) : (
           listed.map((hit) =>
-            editingId === hit.record.id ? (
-              <MemoryEditor
-                key={hit.record.id}
-                record={hit.record}
-                onDone={() => setEditingId(null)}
-              />
+            editing === hit.record.id ? (
+              <Editor key={hit.record.id} record={hit.record} onDone={() => setEditing(null)} />
             ) : (
-              <MemoryItem
+              <Item
                 key={hit.record.id}
                 hit={hit}
                 now={now}
                 canWrite={canWrite}
                 agentName={hit.record.agentId ? lookup(hit.record.agentId).name : null}
-                showScore={searchHits !== null}
-                onEdit={() => setEditingId(hit.record.id)}
+                showScore={hits !== null}
+                onEdit={() => setEditing(hit.record.id)}
               />
             ),
           )
@@ -174,7 +181,7 @@ export function MemoryPanel() {
   );
 }
 
-function MemoryItem({
+function Item({
   hit,
   now,
   canWrite,
@@ -189,7 +196,7 @@ function MemoryItem({
   showScore: boolean;
   onEdit: () => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [open, setOpen] = useState(false);
   const { record } = hit;
 
   const remove = useAction(async () => {
@@ -197,66 +204,68 @@ function MemoryItem({
   });
 
   return (
-    <div className="memory-item">
-      <div className="memory-head">
-        {record.pinned ? <span title="Pinned by a human">📌</span> : null}
-        <span className="memory-title" title={record.title}>
+    <div className="mem">
+      <div className="mem__head">
+        {record.pinned ? (
+          <Icon.Pin size={11} style={{ color: 'var(--amber)' }} />
+        ) : null}
+        <span className="mem__title" title={record.title}>
           {record.title}
         </span>
-        <Badge tone={SCOPE_TONE[record.scope]}>{record.scope.replace('_', '-')}</Badge>
-        <Badge tone={KIND_TONE[record.kind]}>{record.kind}</Badge>
+        <Tag tone={SCOPE_TONE[record.scope]}>{record.scope.replace('_', '-')}</Tag>
+        <Tag tone={KIND_TONE[record.kind]}>{record.kind}</Tag>
       </div>
 
       <button
         type="button"
-        onClick={() => setExpanded((v) => !v)}
+        onClick={() => setOpen((v) => !v)}
         style={{ display: 'block', width: '100%', textAlign: 'left' }}
+        aria-expanded={open}
       >
-        <div className={`memory-content${expanded ? '' : ' clamped'}`}>{record.content}</div>
+        <div className={`mem__text${open ? '' : ' mem__text--clamp'}`}>{record.content}</div>
       </button>
 
       {showScore ? (
         <>
-          <div className="relevance-bar" title={`Relevance ${hit.score.toFixed(3)}`}>
-            <div
-              className="relevance-fill"
-              style={{ width: `${Math.min(100, Math.round(hit.score * 100))}%` }}
-            />
+          <div className="score" title={`Relevance ${hit.score.toFixed(3)}`}>
+            <i style={{ width: `${Math.min(100, Math.round(hit.score * 100))}%` }} />
           </div>
-          <div className="dim mono" style={{ fontSize: 10, marginTop: 3 }}>
+          <div className="faint mono" style={{ fontSize: 9.5, marginTop: 4 }}>
             semantic {hit.breakdown.semantic.toFixed(2)} · keyword {hit.breakdown.keyword.toFixed(2)} ·
-            importance {hit.breakdown.importance.toFixed(2)} · recency {hit.breakdown.recency.toFixed(2)}
+            weight {hit.breakdown.importance.toFixed(2)} · recency {hit.breakdown.recency.toFixed(2)}
           </div>
         </>
       ) : null}
 
-      <div className="row" style={{ marginTop: 7, fontSize: 11 }}>
-        <span className="dim">
+      <div className="mem__foot">
+        <span className="grow trunc">
           {agentName ? `${agentName} · ` : ''}
-          {record.source} · used {record.useCount}× · {relativeTime(record.updatedAt, now)}
+          {record.source} · used {record.useCount}× · {relTime(record.updatedAt, now)}
         </span>
         {canWrite ? (
-          <span className="row" style={{ marginLeft: 'auto', gap: 4 }}>
-            <button type="button" className="btn ghost sm" onClick={onEdit}>
-              Edit
-            </button>
-            <button
-              type="button"
-              className="btn ghost sm"
+          <>
+            <Button variant="quiet" size="sm" onClick={onEdit} ariaLabel="Edit memory">
+              <Icon.Edit size={11} />
+            </Button>
+            <Button
+              variant="quiet"
+              size="sm"
               onClick={() => void remove.run()}
               disabled={remove.pending}
+              ariaLabel="Delete memory"
             >
-              Delete
-            </button>
-          </span>
+              <Icon.Trash size={11} />
+            </Button>
+          </>
         ) : null}
       </div>
-      <ErrorText>{remove.error}</ErrorText>
+
+      <ErrorNote>{remove.error}</ErrorNote>
     </div>
   );
 }
 
-function MemoryEditor({ record, onDone }: { record: MemoryRecord; onDone: () => void }) {
+function Editor({ record, onDone }: { record: MemoryRecord; onDone: () => void }) {
   const [title, setTitle] = useState(record.title);
   const [content, setContent] = useState(record.content);
   const [importance, setImportance] = useState(record.importance);
@@ -268,20 +277,20 @@ function MemoryEditor({ record, onDone }: { record: MemoryRecord; onDone: () => 
   });
 
   return (
-    <div className="memory-item" style={{ background: 'var(--surface-2)' }}>
+    <div className="mem" style={{ background: 'var(--raised)' }}>
       <div className="field">
-        <label htmlFor={`m-title-${record.id}`}>Title</label>
+        <label htmlFor={`t-${record.id}`}>Title</label>
         <input
-          id={`m-title-${record.id}`}
+          id={`t-${record.id}`}
           className="input"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
         />
       </div>
       <div className="field">
-        <label htmlFor={`m-content-${record.id}`}>Content</label>
+        <label htmlFor={`c-${record.id}`}>Content</label>
         <textarea
-          id={`m-content-${record.id}`}
+          id={`c-${record.id}`}
           className="textarea"
           value={content}
           onChange={(e) => setContent(e.target.value)}
@@ -292,8 +301,8 @@ function MemoryEditor({ record, onDone }: { record: MemoryRecord; onDone: () => 
           <input type="checkbox" checked={pinned} onChange={(e) => setPinned(e.target.checked)} />
           Pinned
         </label>
-        <label className="row" style={{ fontSize: 11.5, gap: 6, marginLeft: 'auto' }}>
-          Importance
+        <label className="row grow" style={{ fontSize: 11.5, gap: 6, justifyContent: 'flex-end' }}>
+          Weight
           <input
             type="range"
             min={0}
@@ -301,29 +310,25 @@ function MemoryEditor({ record, onDone }: { record: MemoryRecord; onDone: () => 
             step={0.05}
             value={importance}
             onChange={(e) => setImportance(Number(e.target.value))}
+            style={{ width: 80 }}
           />
           <span className="mono">{importance.toFixed(2)}</span>
         </label>
       </div>
-      <div className="row" style={{ marginTop: 8 }}>
-        <button
-          type="button"
-          className="btn primary sm"
-          onClick={() => void save.run()}
-          disabled={save.pending}
-        >
+      <div className="row" style={{ marginTop: 9 }}>
+        <Button variant="primary" size="sm" onClick={() => void save.run()} disabled={save.pending}>
           Save
-        </button>
-        <button type="button" className="btn ghost sm" onClick={onDone}>
+        </Button>
+        <Button variant="quiet" size="sm" onClick={onDone}>
           Cancel
-        </button>
+        </Button>
       </div>
-      <ErrorText>{save.error}</ErrorText>
+      <ErrorNote>{save.error}</ErrorNote>
     </div>
   );
 }
 
-function MemoryComposer({ onDone }: { onDone: () => void }) {
+function Composer({ onDone }: { onDone: () => void }) {
   const workspace = useWorkspaceOrThrow();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -342,20 +347,18 @@ function MemoryComposer({ onDone }: { onDone: () => void }) {
     onDone();
   });
 
-  const submit = useCallback(() => {
-    if (!title.trim() || !content.trim()) return;
-    void create.run();
-  }, [title, content, create]);
-
   return (
-    <div className="pad" style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface-2)' }}>
-      <div className="dim" style={{ fontSize: 11, marginBottom: 8 }}>
-        Anything you add here is retrieved into the agents' prompts on their next task.
+    <div
+      className="pad"
+      style={{ borderBottom: '1px solid var(--hairline)', background: 'var(--raised)' }}
+    >
+      <div className="faint" style={{ fontSize: 11, marginBottom: 9, lineHeight: 1.5 }}>
+        Anything you add is retrieved into the agents' prompts on their next task.
       </div>
       <div className="field">
-        <label htmlFor="new-memory-title">Title</label>
+        <label htmlFor="nm-title">Title</label>
         <input
-          id="new-memory-title"
+          id="nm-title"
           className="input"
           value={title}
           placeholder="e.g. Never recommend a tool over $200/seat"
@@ -363,9 +366,9 @@ function MemoryComposer({ onDone }: { onDone: () => void }) {
         />
       </div>
       <div className="field">
-        <label htmlFor="new-memory-content">Content</label>
+        <label htmlFor="nm-content">Content</label>
         <textarea
-          id="new-memory-content"
+          id="nm-content"
           className="textarea"
           value={content}
           placeholder="State it the way you would tell a new teammate."
@@ -373,14 +376,24 @@ function MemoryComposer({ onDone }: { onDone: () => void }) {
         />
       </div>
       <div className="row">
-        <select className="select" value={scope} onChange={(e) => setScope(e.target.value as MemoryScope)}>
+        <select
+          className="select"
+          value={scope}
+          onChange={(e) => setScope(e.target.value as MemoryScope)}
+          aria-label="Scope"
+        >
           {MEMORY_SCOPES.map((s) => (
             <option key={s} value={s}>
               {s.replace('_', '-')}
             </option>
           ))}
         </select>
-        <select className="select" value={kind} onChange={(e) => setKind(e.target.value as MemoryKind)}>
+        <select
+          className="select"
+          value={kind}
+          onChange={(e) => setKind(e.target.value as MemoryKind)}
+          aria-label="Kind"
+        >
           {MEMORY_KINDS.map((k) => (
             <option key={k} value={k}>
               {k}
@@ -389,19 +402,19 @@ function MemoryComposer({ onDone }: { onDone: () => void }) {
         </select>
       </div>
       <div className="row" style={{ marginTop: 10 }}>
-        <button
-          type="button"
-          className="btn primary sm"
-          onClick={submit}
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={() => void create.run()}
           disabled={create.pending || !title.trim() || !content.trim()}
         >
           Remember this
-        </button>
-        <button type="button" className="btn ghost sm" onClick={onDone}>
+        </Button>
+        <Button variant="quiet" size="sm" onClick={onDone}>
           Cancel
-        </button>
+        </Button>
       </div>
-      <ErrorText>{create.error}</ErrorText>
+      <ErrorNote>{create.error}</ErrorNote>
     </div>
   );
 }

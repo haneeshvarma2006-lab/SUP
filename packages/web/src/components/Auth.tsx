@@ -2,46 +2,53 @@ import { useEffect, useState } from 'react';
 import type { User } from '@sup/shared';
 import { api, setToken } from '../api/client.js';
 import { useAction } from '../state/hooks.js';
-import { ErrorText, Spinner } from './primitives.js';
+import { Button, ErrorNote, Icon, Spinner } from './primitives.js';
 
+/**
+ * The entrance.
+ *
+ * A first-time visitor has no idea what this product is, so the card states it
+ * in one line before asking for anything. Everything else is deliberately
+ * minimal — the interesting surface is behind the door, not on it.
+ */
 export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: User) => void }) {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [displayName, setDisplayName] = useState('');
+  const [name, setName] = useState('');
 
   const submit = useAction(async () => {
     const result =
       mode === 'login'
         ? await api.login({ email, password })
-        : await api.register({ email, password, displayName });
+        : await api.register({ email, password, displayName: name });
     setToken(result.token);
     onAuthenticated(result.user);
   });
 
   const valid =
-    email.includes('@') &&
-    password.length >= 8 &&
-    (mode === 'login' || displayName.trim().length > 0);
+    email.includes('@') && password.length >= 8 && (mode === 'login' || name.trim().length > 0);
 
   return (
-    <div className="auth-page">
+    <div className="gate">
       <form
-        className="auth-card"
+        className="gate__card"
         onSubmit={(e) => {
           e.preventDefault();
           if (valid) void submit.run();
         }}
       >
-        <div className="row" style={{ marginBottom: 20 }}>
-          <span className="brand-mark">◆</span>
-          <div>
-            <h1 className="auth-title">SUP</h1>
-            <p className="auth-sub" style={{ margin: 0 }}>
-              A room where you and a team of AI agents work on the same project.
-            </p>
-          </div>
+        <div className="row" style={{ gap: 11, marginBottom: 7 }}>
+          <span className="mark" style={{ width: 32, height: 32, borderRadius: 9 }}>
+            <Icon.Logo size={16} />
+          </span>
+          <h1 className="gate__title">SUP</h1>
         </div>
+
+        <p className="gate__sub" style={{ marginBottom: 24 }}>
+          A shared room where you and a team of AI agents work on the same project — in real time,
+          together.
+        </p>
 
         {mode === 'register' ? (
           <div className="field">
@@ -49,9 +56,9 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: User) 
             <input
               id="auth-name"
               className="input"
-              value={displayName}
+              value={name}
               autoComplete="name"
-              onChange={(e) => setDisplayName(e.target.value)}
+              onChange={(e) => setName(e.target.value)}
             />
           </div>
         ) : null}
@@ -79,28 +86,28 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: User) 
             onChange={(e) => setPassword(e.target.value)}
           />
           {mode === 'register' ? (
-            <span className="dim" style={{ fontSize: 11 }}>
+            <span className="faint" style={{ fontSize: 11 }}>
               At least 8 characters.
             </span>
           ) : null}
         </div>
 
-        <button
+        <Button
           type="submit"
-          className="btn primary"
-          style={{ width: '100%', marginTop: 4 }}
+          variant="primary"
           disabled={!valid || submit.pending}
+          style={{ width: '100%', marginTop: 4, padding: '9px 13px' }}
         >
           {submit.pending ? <Spinner /> : mode === 'login' ? 'Sign in' : 'Create account'}
-        </button>
+        </Button>
 
-        <ErrorText>{submit.error}</ErrorText>
+        <ErrorNote>{submit.error}</ErrorNote>
 
-        <div style={{ textAlign: 'center', marginTop: 16, fontSize: 12.5 }} className="dim">
-          {mode === 'login' ? 'No account yet?' : 'Already have an account?'}{' '}
+        <div className="faint" style={{ textAlign: 'center', marginTop: 18, fontSize: 12.5 }}>
+          {mode === 'login' ? 'No account yet?' : 'Already have one?'}{' '}
           <button
             type="button"
-            style={{ color: 'var(--accent)', fontWeight: 600 }}
+            style={{ color: 'var(--iris-bright)', fontWeight: 580 }}
             onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
           >
             {mode === 'login' ? 'Create one' : 'Sign in'}
@@ -111,7 +118,13 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: User) 
   );
 }
 
-/** Workspace chooser, shown after sign-in when no workspace is selected. */
+/**
+ * Workspace chooser.
+ *
+ * The create field explains what a new workspace comes with, because the answer
+ * — a full agent team, already assembled — is the product's best first
+ * impression and is otherwise invisible until after the click.
+ */
 export function WorkspacePicker({
   onOpen,
   onSignOut,
@@ -122,14 +135,14 @@ export function WorkspacePicker({
   userName: string;
 }) {
   const [name, setName] = useState('');
-  const [workspaces, setWorkspaces] = useState<Array<{ id: string; name: string; description: string; role: string }> | null>(
-    null,
-  );
+  const [list, setList] = useState<
+    Array<{ id: string; name: string; description: string; role: string }> | null
+  >(null);
 
   const load = useAction(async () => {
-    const response = await api.listWorkspaces();
-    setWorkspaces(
-      response.workspaces.map((w) => ({
+    const r = await api.listWorkspaces();
+    setList(
+      r.workspaces.map((w) => ({
         id: w.id,
         name: w.name,
         description: w.description,
@@ -143,63 +156,69 @@ export function WorkspacePicker({
     onOpen(created.workspace.id);
   });
 
-  // Load once on mount. This must be an effect, not a lazy useState
-  // initialiser — the initialiser runs during render, and `load.run` sets
-  // state, which React refuses to do mid-render.
+  // Effect, not a lazy state initialiser: the initialiser runs during render,
+  // and `load.run` sets state, which React refuses mid-render.
   useEffect(() => {
     void load.run();
-    // `load.run` is recreated each render, so depending on it would loop.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
-    <div className="auth-page">
-      <div className="auth-card" style={{ maxWidth: 520 }}>
-        <div className="row" style={{ marginBottom: 18 }}>
-          <span className="brand-mark">◆</span>
-          <div style={{ flex: 1 }}>
-            <h1 className="auth-title">Your workspaces</h1>
-            <p className="auth-sub" style={{ margin: 0 }}>
+    <div className="gate">
+      <div className="gate__card" style={{ maxWidth: 520 }}>
+        <div className="row" style={{ gap: 11, marginBottom: 20 }}>
+          <span className="mark" style={{ width: 30, height: 30, borderRadius: 9 }}>
+            <Icon.Logo size={15} />
+          </span>
+          <div className="grow">
+            <h1 className="gate__title" style={{ fontSize: 18 }}>
+              Your workspaces
+            </h1>
+            <p className="gate__sub" style={{ fontSize: 12.5 }}>
               Signed in as {userName}
             </p>
           </div>
-          <button type="button" className="btn ghost sm" onClick={onSignOut}>
-            Sign out
-          </button>
+          <Button variant="quiet" size="sm" onClick={onSignOut}>
+            <Icon.Exit size={12} /> Sign out
+          </Button>
         </div>
 
-        {load.pending && !workspaces ? (
-          <div style={{ textAlign: 'center', padding: 20 }}>
+        {load.pending && !list ? (
+          <div style={{ textAlign: 'center', padding: 22 }}>
             <Spinner />
           </div>
         ) : null}
 
-        <div className="stack" style={{ marginBottom: 20 }}>
-          {(workspaces ?? []).map((workspace) => (
-            <button
-              key={workspace.id}
-              type="button"
-              className="card interactive"
-              style={{ textAlign: 'left' }}
-              onClick={() => onOpen(workspace.id)}
-            >
-              <div style={{ fontWeight: 650, fontSize: 14 }}>{workspace.name}</div>
-              <div className="dim" style={{ fontSize: 12 }}>
-                {workspace.description || 'No description'} · you are {workspace.role}
-              </div>
-            </button>
-          ))}
-          {workspaces?.length === 0 ? (
-            <div className="dim" style={{ fontSize: 12.5, textAlign: 'center', padding: 10 }}>
-              You are not in a workspace yet. Create your first one below — it comes with a full
-              agent team.
-            </div>
-          ) : null}
-        </div>
+        {list && list.length > 0 ? (
+          <div className="col-gap" style={{ marginBottom: 20 }}>
+            {list.map((w) => (
+              <button key={w.id} type="button" className="card card--tap" onClick={() => onOpen(w.id)}>
+                <div className="row">
+                  <span style={{ fontWeight: 620, fontSize: 13.5 }}>{w.name}</span>
+                  <span className="faint grow" style={{ textAlign: 'right', fontSize: 11 }}>
+                    {w.role}
+                  </span>
+                  <Icon.Arrow size={12} className="faint" />
+                </div>
+                {w.description ? (
+                  <div className="faint" style={{ fontSize: 12, marginTop: 2 }}>
+                    {w.description}
+                  </div>
+                ) : null}
+              </button>
+            ))}
+          </div>
+        ) : null}
 
-        <div className="divider" />
+        {list && list.length === 0 ? (
+          <div className="faint" style={{ fontSize: 12.5, textAlign: 'center', padding: '4px 0 18px', lineHeight: 1.6 }}>
+            You are not in a workspace yet. Create your first one below.
+          </div>
+        ) : null}
 
-        <div className="field">
+        <div className="hr" />
+
+        <div className="field" style={{ marginBottom: 0 }}>
           <label htmlFor="new-workspace">Create a workspace</label>
           <div className="row">
             <input
@@ -212,21 +231,21 @@ export function WorkspacePicker({
                 if (e.key === 'Enter' && name.trim()) void create.run();
               }}
             />
-            <button
-              type="button"
-              className="btn primary"
+            <Button
+              variant="primary"
               onClick={() => void create.run()}
               disabled={!name.trim() || create.pending}
             >
               {create.pending ? <Spinner /> : 'Create'}
-            </button>
+            </Button>
           </div>
-          <span className="dim" style={{ fontSize: 11 }}>
-            Comes with an orchestrator, researcher, analyst, reviewer and writer.
+          <span className="faint" style={{ fontSize: 11, marginTop: 5, lineHeight: 1.5 }}>
+            Comes with a full team — an orchestrator, researcher, analyst, reviewer and writer —
+            ready to take an objective.
           </span>
         </div>
 
-        <ErrorText>{create.error ?? load.error}</ErrorText>
+        <ErrorNote>{create.error ?? load.error}</ErrorNote>
       </div>
     </div>
   );

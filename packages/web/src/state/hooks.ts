@@ -66,9 +66,18 @@ export function useActorLookup() {
         kind: 'user',
       });
     }
+
+    // `members` is the snapshot's roster, so it cannot name someone who joined
+    // after this client loaded. `seenUsers` accumulates everyone observed since,
+    // and outlives their going offline.
+    for (const [id, user] of Object.entries(workspace?.seenUsers ?? {})) {
+      if (map.has(id)) continue;
+      map.set(id, { name: user.displayName, color: user.avatarColor, kind: 'user' });
+    }
+
     return (id: string | undefined) =>
       (id ? map.get(id) : undefined) ?? { name: id ?? 'System', color: '#64748b', kind: 'system' as const };
-  }, [workspace?.agents, workspace?.members]);
+  }, [workspace?.agents, workspace?.members, workspace?.seenUsers]);
 }
 
 /** Runs an async action, exposing pending state and the last error. */
