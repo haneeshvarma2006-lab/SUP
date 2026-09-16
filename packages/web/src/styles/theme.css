@@ -1524,24 +1524,19 @@ kbd {
   color: var(--amber);
 }
 
-/* ---- section heading ---------------------------------------------------- */
-
-.shead {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 13px 16px 7px;
-  font-size: 10.5px;
-  font-weight: 640;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-
-.shead__line {
-  flex: 1;
+/* Announced, never drawn: live regions that carry state the sighted layout
+   already shows (the bell count, the connection pill). */
+.sr-only {
+  position: absolute;
+  width: 1px;
   height: 1px;
-  background: var(--hairline);
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* ---- activity feed ------------------------------------------------------ */

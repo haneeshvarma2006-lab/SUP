@@ -241,43 +241,6 @@ export function Button({
   );
 }
 
-export function IconButton({
-  icon,
-  onClick,
-  label,
-  variant = 'quiet',
-  disabled,
-}: {
-  icon: ReactNode;
-  onClick?: () => void;
-  label: string;
-  variant?: 'default' | 'ghost' | 'quiet' | 'danger';
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      className={`btn btn--icon${variant === 'default' ? '' : ` btn--${variant}`}`}
-      onClick={onClick}
-      title={label}
-      aria-label={label}
-      disabled={disabled}
-    >
-      {icon}
-    </button>
-  );
-}
-
-export function SectionHead({ children, action }: { children: ReactNode; action?: ReactNode }) {
-  return (
-    <div className="shead">
-      <span>{children}</span>
-      <span className="shead__line" />
-      {action}
-    </div>
-  );
-}
-
 export function Empty({
   icon,
   title,

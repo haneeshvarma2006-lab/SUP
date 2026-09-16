@@ -257,12 +257,19 @@ function TopBar({
         </span>
       ) : null}
 
-      <span className="pill" title={`Realtime connection: ${app.connection}`}>
+      <span
+        className="pill"
+        title={`Realtime connection: ${app.connection}`}
+        role="status"
+        aria-label={`Realtime connection: ${app.connection}`}
+      >
         <span
           className={`dot${app.connection === 'reconnecting' ? ' dot--live' : ''}`}
           style={{ ['--dot' as string]: connTone }}
         />
-        <span className="conn-label">{app.connection === 'open' ? 'Live' : app.connection}</span>
+        <span className="conn-label" aria-hidden="true">
+          {app.connection === 'open' ? 'Live' : app.connection}
+        </span>
       </span>
 
       <button
@@ -276,6 +283,12 @@ function TopBar({
         <Icon.Bell size={15} />
         {attention > 0 ? <span className="bell__count">{attention}</span> : null}
       </button>
+
+      {/* The bell's own label changes silently while it is unfocused, so the
+          count gets its own polite announcement. */}
+      <span className="sr-only" role="status">
+        {attention > 0 ? `${attention} waiting on you` : ''}
+      </span>
 
       <div className="facepile">
         {online.slice(0, 4).map((p) => (

@@ -1,7 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { ApprovalRequest, Message, Task } from '@sup/shared';
 import { api } from '../api/client.js';
-import { useAction, useActorLookup, useTicker, useWorkspaceOrThrow } from '../state/hooks.js';
+import {
+  useAction,
+  useActorLookup,
+  useEscape,
+  useFocusTrap,
+  useTicker,
+  useWorkspaceOrThrow,
+} from '../state/hooks.js';
 import type { WorkspaceState } from '../state/store.js';
 import { Avatar, Button, ErrorNote, Icon, Spinner, relTime } from './primitives.js';
 
@@ -65,19 +72,15 @@ export function AttentionDock({
   onClose: () => void;
   onOpenTask: (taskId: string) => void;
 }) {
-  // Escape closes, like every other transient surface in the app.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  // Escape closes, like every other transient surface in the app, and focus
+  // stays inside while it is open.
+  useEscape(onClose);
+  const trap = useFocusTrap<HTMLDivElement>();
 
   return (
     <>
       <div className="scrim" onClick={onClose} aria-hidden="true" />
-      <div className="dock" role="dialog" aria-label="Needs your attention">
+      <div className="dock" role="dialog" aria-modal="true" aria-label="Needs your attention" ref={trap}>
         <div className="dock__head">
           <Icon.Bell size={13} className="faint" />
           <span className="grow">

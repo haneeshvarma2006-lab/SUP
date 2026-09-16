@@ -1,7 +1,13 @@
 import { useMemo, useState } from 'react';
 import type { AgentTemplate } from '@sup/shared';
 import { api } from '../api/client.js';
-import { useAction, useAsync, useWorkspaceOrThrow } from '../state/hooks.js';
+import {
+  useAction,
+  useAsync,
+  useEscape,
+  useFocusTrap,
+  useWorkspaceOrThrow,
+} from '../state/hooks.js';
 import { ErrorNote, Spinner, Tag } from './primitives.js';
 
 /**
@@ -14,6 +20,10 @@ import { ErrorNote, Spinner, Tag } from './primitives.js';
 export function AddAgentDialog({ onClose }: { onClose: () => void }) {
   const workspace = useWorkspaceOrThrow();
   const templates = useAsync(async () => (await api.agentTemplates()).templates, []);
+
+  // It declares itself modal below, so it has to behave like one.
+  useEscape(onClose);
+  const trap = useFocusTrap<HTMLDivElement>();
 
   const [selected, setSelected] = useState<AgentTemplate | null>(null);
   const [custom, setCustom] = useState(false);
@@ -99,6 +109,7 @@ export function AddAgentDialog({ onClose }: { onClose: () => void }) {
       aria-label="Add an agent"
     >
       <div
+        ref={trap}
         className="gate__card"
         style={{ maxWidth: 620, width: '100%', maxHeight: '88vh', overflowY: 'auto' }}
       >

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import type { Agent, Task, WorkspaceEvent } from '@sup/shared';
+import type { Agent, WorkspaceEvent } from '@sup/shared';
 import { ACTIVITY_FEED_EVENTS } from '@sup/shared';
 import { store, type AppState, type WorkspaceState } from './store.js';
 
@@ -26,12 +26,73 @@ export function useAgent(agentId: string | null): Agent | null {
   );
 }
 
-export function useTask(taskId: string | null): Task | null {
-  const workspace = useWorkspace();
-  return useMemo(
-    () => (taskId ? (workspace?.tasks.find((t) => t.id === taskId) ?? null) : null),
-    [workspace?.tasks, taskId],
-  );
+/** Closes a transient surface on Escape, from anywhere on the page. */
+export function useEscape(onClose: () => void): void {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+}
+
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]),' +
+  ' select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/**
+ * Keeps keyboard focus inside a modal surface and hands it back on close.
+ *
+ * `aria-modal` is a promise to assistive tech, not an implementation: without
+ * this, Tab walks straight out of the dialog into the workspace behind it, and
+ * closing drops focus on `<body>`, which strands anyone not using a mouse.
+ */
+export function useFocusTrap<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+
+  useEffect(() => {
+    const container = ref.current;
+    if (!container) return;
+
+    const restoreTo = document.activeElement as HTMLElement | null;
+    const targets = () =>
+      [...container.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
+        (el) => el.offsetParent !== null,
+      );
+
+    targets()[0]?.focus();
+
+    // Bound to the window rather than the container so that focus which has
+    // already escaped — or never landed — is pulled back on the next Tab.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+      const items = targets();
+      if (items.length === 0) return;
+      const first = items[0]!;
+      const last = items[items.length - 1]!;
+      const active = document.activeElement;
+
+      if (!container.contains(active)) {
+        e.preventDefault();
+        (e.shiftKey ? last : first).focus();
+      } else if (e.shiftKey && active === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      restoreTo?.focus?.();
+    };
+  }, []);
+
+  return ref;
 }
 
 /** Events worth showing a human, newest first. */

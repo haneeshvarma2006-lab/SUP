@@ -82,11 +82,6 @@ export class Store {
     for (const listener of this.listeners) listener();
   }
 
-  private setWorkspace(update: (current: WorkspaceState) => WorkspaceState): void {
-    if (!this.state.workspace) return;
-    this.set({ workspace: update(this.state.workspace) });
-  }
-
   // -- lifecycle -------------------------------------------------------------
 
   setConnection(connection: ConnectionState): void {
@@ -140,18 +135,6 @@ export class Store {
 
   applyEvent(event: WorkspaceEvent): void {
     this.applyEvents([event]);
-  }
-
-  /**
-   * Optimistic local insert for something the user just did. The authoritative
-   * version arrives moments later as an event and replaces this by id, so a
-   * server-side rejection self-corrects instead of leaving a phantom.
-   */
-  optimisticMessage(message: Message): void {
-    this.setWorkspace((current) => ({
-      ...current,
-      messages: upsertBy(current.messages, message, (m) => m.id).slice(-MAX_MESSAGES),
-    }));
   }
 }
 

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import type { Message } from '@sup/shared';
 import { MAIN_CHANNEL } from '@sup/shared';
 import { api } from '../api/client.js';
-import { useAction, useActorLookup, useWorkspaceOrThrow } from '../state/hooks.js';
+import { useActorLookup, useWorkspaceOrThrow } from '../state/hooks.js';
 import { Markdown } from './Markdown.js';
 import { Avatar, Button, ErrorNote, Icon, Spinner, Tag, clockTime } from './primitives.js';
 
@@ -99,7 +99,7 @@ export function RoomStream({
         {messages.length === 0 ? (
           <FirstLight />
         ) : (
-          <div className="stream">
+          <div className="stream" aria-live="polite" aria-relevant="additions" role="log">
             {messages.map((message, i) => (
               <Row
                 key={message.id}
@@ -346,14 +346,23 @@ function Composer() {
   const workspace = useWorkspaceOrThrow();
   const [draft, setDraft] = useState('');
   const [cursor, setCursor] = useState(0);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // The draft at which the mention menu was dismissed. Keeping the text rather
+  // than a boolean lets the menu stay shut while the person keeps typing the
+  // name they already declined to complete, and come back if they delete back
+  // past it.
+  const [muted, setMuted] = useState<string | null>(null);
   const areaRef = useRef<HTMLTextAreaElement>(null);
+  const workspaceId = workspace.workspace.id;
 
   const canSend = workspace.viewer.role !== 'viewer';
 
   const query = useMemo(() => {
+    if (muted !== null && draft.startsWith(muted)) return null;
     const match = /@([A-Za-z0-9_-]*)$/.exec(draft);
     return match ? match[1]!.toLowerCase() : null;
-  }, [draft]);
+  }, [draft, muted]);
 
   const matches = useMemo(() => {
     if (query === null) return [];
@@ -362,20 +371,30 @@ function Composer() {
       .slice(0, 6);
   }, [query, workspace.agents]);
 
-  const send = useAction(async (body: string) => {
-    await api.sendMessage(workspace.workspace.id, { body, channel: MAIN_CHANNEL });
-  });
-
-  const submit = useCallback(() => {
+  const submit = useCallback(async () => {
     const body = draft.trim();
-    if (!body || send.pending) return;
-    setDraft('');
-    void send.run(body);
-  }, [draft, send]);
+    if (!body || sending) return;
+    setSending(true);
+    setError(null);
+    try {
+      await api.sendMessage(workspaceId, { body, channel: MAIN_CHANNEL });
+      // Clear only once the server has it. Clearing on keypress looks snappier
+      // right up until the network or the server says no, at which point what
+      // the person wrote is simply gone. If they kept typing while it was in
+      // flight, their newer text wins.
+      setDraft((current) => (current.trim() === body ? '' : current));
+      setMuted(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSending(false);
+    }
+  }, [draft, sending, workspaceId]);
 
   const accept = useCallback((name: string) => {
     setDraft((d) => d.replace(/@([A-Za-z0-9_-]*)$/, `@${name} `));
     setCursor(0);
+    setMuted(null);
     areaRef.current?.focus();
   }, []);
 
@@ -456,13 +475,13 @@ function Composer() {
               }
               if (e.key === 'Escape') {
                 e.preventDefault();
-                setDraft((d) => `${d} `);
+                setMuted(draft);
                 return;
               }
             }
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
-              submit();
+              void submit();
             }
           }}
         />
@@ -471,13 +490,18 @@ function Composer() {
           <span className="composer__hint">
             <kbd>↵</kbd> send · <kbd>@</kbd> address an agent
           </span>
-          {send.pending ? <Spinner /> : null}
-          <Button variant="primary" size="sm" onClick={submit} disabled={!draft.trim() || send.pending}>
+          {sending ? <Spinner /> : null}
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => void submit()}
+            disabled={!draft.trim() || sending}
+          >
             <Icon.Send size={11} /> Send
           </Button>
         </div>
       </div>
-      <ErrorNote>{send.error}</ErrorNote>
+      <ErrorNote>{error}</ErrorNote>
     </div>
   );
 }
