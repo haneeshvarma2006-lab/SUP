@@ -1,0 +1,30 @@
+{
+  "name": "sup-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SUP — a real-time multiplayer workspace where humans and AI agents collaborate.",
+  "type": "module",
+  "workspaces": [
+    "packages/shared",
+    "packages/server",
+    "packages/web"
+  ],
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "build": "npm run build -w @sup/shared && npm run build -w @sup/server && npm run build -w @sup/web",
+    "build:shared": "npm run build -w @sup/shared",
+    "dev": "npm run build:shared && concurrently -n server,web -c cyan,magenta \"npm run dev -w @sup/server\" \"npm run dev -w @sup/web\"",
+    "dev:server": "npm run dev -w @sup/server",
+    "dev:web": "npm run dev -w @sup/web",
+    "start": "npm run start -w @sup/server",
+    "seed": "npm run seed -w @sup/server",
+    "test": "npm run build:shared && npm run test -w @sup/server",
+    "typecheck": "npm run build:shared && npm run typecheck -w @sup/server && npm run typecheck -w @sup/web"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.7.3"
+  }
+}
