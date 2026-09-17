@@ -66,6 +66,66 @@ inventing sources — see [Honesty by construction](#honesty-by-construction).
 
 ---
 
+## Deploying
+
+SUP is **one long-lived process**. A single Fastify listener serves the REST
+API, the websocket hub (`/ws`) and the built web client on one port. Three
+things follow from that, and they decide where it can run:
+
+- the websocket hub holds connections open, so a serverless function cannot
+  host it;
+- `better-sqlite3` writes to a file, so the filesystem must be writable and
+  persistent;
+- the event log's gap-free per-workspace `seq` is allocated inside a SQLite
+  `IMMEDIATE` transaction, which is correct precisely because there is exactly
+  one writer.
+
+So: a container host (Railway, Render, Fly.io) or a VM. Not Vercel, Netlify or
+any other serverless target — those can host the *frontend*, but the backend has
+to live somewhere that runs a real process.
+
+### One container (recommended)
+
+The included `Dockerfile` builds all three packages and runs the server with the
+client baked in:
+
+```bash
+docker build -t sup .
+docker run -p 4000:4000 \
+  -v sup-data:/data \
+  -e AUTH_SECRET="$(openssl rand -hex 32)" \
+  -e ANTHROPIC_API_KEY=... \
+  sup
+```
+
+`/data` is declared as a volume and holds the SQLite file. Mount it, or the
+database is recreated empty whenever the container is replaced. `AUTH_SECRET` is
+required in production — the server refuses to start without it rather than
+silently shipping a known key.
+
+On Railway, Render or Fly this is the whole deployment: point the platform at
+the Dockerfile, attach a volume at `/data`, set `AUTH_SECRET`, done.
+
+### Frontend and backend on separate hosts
+
+Only worth it if you specifically want the client on a CDN. The backend still
+needs a container host.
+
+Auth travels as a bearer token in `localStorage` rather than a cookie, so a
+split origin needs no SameSite handling — two settings cover it:
+
+- build the web package with `VITE_API_ORIGIN=https://your-api-host`, and
+- start the server with `CORS_ORIGINS=https://your-frontend-host`.
+
+`ws://` and `wss://` are derived from `VITE_API_ORIGIN`, so the two transports
+cannot disagree about TLS. `vercel.json` in the repo root configures exactly
+this deploy: it installs and builds only `@sup/shared` and `@sup/web`, so
+`better-sqlite3` is never fetched or compiled, and serves `packages/web/dist`
+with an SPA rewrite.
+
+With `VITE_API_ORIGIN` unset the client uses relative paths and same-origin
+websockets, which is the single-container deployment above.
+
 ## Architecture
 
 ```

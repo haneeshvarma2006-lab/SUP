@@ -1,0 +1,8 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "npm ci --include-workspace-root --workspace @sup/shared --workspace @sup/web",
+  "buildCommand": "npm run build -w @sup/shared && npm run build -w @sup/web",
+  "outputDirectory": "packages/web/dist",
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+}

@@ -5,6 +5,7 @@ import {
   type WorkspaceEvent,
   type WorkspaceSnapshot,
 } from '@sup/shared';
+import { wsUrl } from './origin.js';
 
 export type ConnectionState = 'connecting' | 'open' | 'reconnecting' | 'closed';
 
@@ -86,8 +87,7 @@ export class RealtimeClient {
 
     this.setState(this.reconnectAttempts === 0 ? 'connecting' : 'reconnecting');
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const socket = new WebSocket(`${protocol}//${window.location.host}/ws`);
+    const socket = new WebSocket(wsUrl());
     this.socket = socket;
 
     socket.onopen = () => {

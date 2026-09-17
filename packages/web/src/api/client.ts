@@ -18,6 +18,7 @@ import type {
   WorkspaceRole,
   WorkspaceSnapshot,
 } from '@sup/shared';
+import { apiUrl } from './origin.js';
 
 const TOKEN_KEY = 'sup.token';
 
@@ -65,7 +66,7 @@ async function request<T>(
   body?: unknown,
   signal?: AbortSignal,
 ): Promise<T> {
-  const response = await fetch(path, {
+  const response = await fetch(apiUrl(path), {
     method,
     headers: {
       ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
