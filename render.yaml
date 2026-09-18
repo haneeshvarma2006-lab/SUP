@@ -1,0 +1,33 @@
+# Render Blueprint for SUP. Point Render at this repo and it reads this file:
+# https://render.com/docs/infrastructure-as-code
+#
+# The disk is the part that matters. Without it SQLite lives on an ephemeral
+# filesystem and the database is empty again after every deploy or restart.
+# Disks require a paid instance type, and they also pin the service to a single
+# instance — which is what this app wants anyway: the event log's gap-free
+# sequence assumes one writer.
+
+services:
+  - type: web
+    name: sup
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    healthCheckPath: /api/health
+    autoDeploy: false
+    disk:
+      name: sup-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: PORT
+        value: 4000
+      - key: DATA_DIR
+        value: /data
+      # Generated once and then held; regenerating it invalidates every session.
+      - key: AUTH_SECRET
+        generateValue: true
+      # Set in the dashboard. Without it agents run the offline heuristic
+      # policy, which exercises the whole platform but is not a language model.
+      - key: ANTHROPIC_API_KEY
+        sync: false

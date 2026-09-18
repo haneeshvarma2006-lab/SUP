@@ -1,0 +1,48 @@
+# Fly.io deployment for SUP.
+#
+#   fly launch --no-deploy --copy-config
+#   fly volumes create sup_data --size 1
+#   fly secrets set AUTH_SECRET="$(openssl rand -hex 32)"
+#   fly deploy
+#
+# Two settings below are load-bearing rather than defaults worth tweaking:
+# the machine must not stop, and there must be exactly one of it.
+
+app = "sup"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "4000"
+  DATA_DIR = "/data"
+
+[http_service]
+  internal_port = 4000
+  force_https = true
+  # Scale-to-zero would drop every open websocket and with it the realtime
+  # layer, so the machine stays up.
+  auto_stop_machines = false
+  auto_start_machines = true
+  # Keep this at 1. The event log's gap-free per-workspace sequence is
+  # allocated inside a SQLite IMMEDIATE transaction and is correct because a
+  # single writer allocates it; a second machine would be a second writer
+  # against its own volume, and ordering would break quietly.
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    grace_period = "20s"
+    interval = "30s"
+    method = "GET"
+    path = "/api/health"
+    timeout = "5s"
+
+[[mounts]]
+  source = "sup_data"
+  destination = "/data"
+
+[[vm]]
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1

@@ -103,8 +103,29 @@ database is recreated empty whenever the container is replaced. `AUTH_SECRET` is
 required in production — the server refuses to start without it rather than
 silently shipping a known key.
 
-On Railway, Render or Fly this is the whole deployment: point the platform at
-the Dockerfile, attach a volume at `/data`, set `AUTH_SECRET`, done.
+Two blueprints are committed so this is one command rather than a form:
+
+**Fly.io** — `fly.toml`:
+
+```bash
+fly launch --no-deploy --copy-config
+fly volumes create sup_data --size 1
+fly secrets set AUTH_SECRET="$(openssl rand -hex 32)"
+fly deploy
+```
+
+**Render** — `render.yaml`, read automatically when you point Render at the
+repo as a Blueprint. `AUTH_SECRET` is generated for you; set
+`ANTHROPIC_API_KEY` in the dashboard.
+
+**Railway** — detects the Dockerfile on import. Add a volume mounted at
+`/data` and set `AUTH_SECRET`.
+
+Whichever you pick, two settings are load-bearing rather than defaults worth
+tweaking: a persistent disk mounted at `/data`, and exactly one always-on
+instance. Scale-to-zero drops every open websocket, and a second instance is a
+second SQLite writer, which breaks the event log's ordering guarantee quietly
+rather than loudly. Both blueprints encode this.
 
 ### Frontend and backend on separate hosts
 
