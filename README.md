@@ -127,6 +127,37 @@ instance. Scale-to-zero drops every open websocket, and a second instance is a
 second SQLite writer, which breaks the event log's ordering guarantee quietly
 rather than loudly. Both blueprints encode this.
 
+All three of the above need a paid instance type, because the persistent disk
+does.
+
+### Deploying for free
+
+This app wants three things at once — an always-on process, websockets, and a
+writable disk that survives a restart — and as of 2026 almost no free tier
+gives all three. Fly and Railway no longer have a free tier at all; Render's
+free plan sleeps after fifteen minutes and cannot attach a disk.
+
+Two that do work, with different trade-offs:
+
+**Koyeb free** — easiest. One Nano service, no sleep, websockets and Docker
+both supported: point it at this repo and it builds the Dockerfile. The catch
+is that free instances cannot attach a volume, so `/data` is ephemeral and the
+database resets on every redeploy. For a demo or a portfolio piece that is
+usually fine — data survives while the service is running, and `npm run seed`
+rebuilds the demo workspace.
+
+**Oracle Cloud Always Free** — a real VM, so it is the only free option that
+ticks all three boxes: always on, real block storage, no sleep. Install Docker,
+then `docker build -t sup . && docker run -d -p 80:4000 -v sup-data:/data -e
+AUTH_SECRET=... sup`. It costs an hour of setup, wants a card for identity
+verification, and ARM capacity is frequently unavailable — the smaller AMD
+shape is easier to get and is enough for this.
+
+If you want persistence *and* a free stateless host, the real fix is to move
+off SQLite onto a free managed Postgres and let any of them run the stateless
+process. That is a genuine refactor — `better-sqlite3` is synchronous
+throughout — not a config change.
+
 ### Frontend and backend on separate hosts
 
 Only worth it if you specifically want the client on a CDN. The backend still
